@@ -1,0 +1,440 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+interface Assignment {
+  id: number;
+  date: string;
+  man_day: number;
+  note: string | null;
+  user_id: number;
+  project_id: number;
+  worker_name: string;
+  project_name: string;
+  company_id: number;
+  company_name: string;
+  company_color: string;
+}
+
+interface Project {
+  id: number;
+  name: string;
+  company_id: number;
+  company_name: string;
+  company_color: string;
+}
+
+interface Member {
+  id: number;
+  display_name: string;
+}
+
+interface DayData {
+  [companyProject: string]: {
+    company_name: string;
+    company_color: string;
+    project_name: string;
+    project_id: number;
+    workers: { id: number; name: string; man_day: number; note: string | null; assignment_id: number }[];
+  };
+}
+
+export default function CalendarPage() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({
+    project_id: "",
+    user_ids: [] as number[],
+    man_day: "1.0",
+    note: "",
+  });
+
+  const load = useCallback(async () => {
+    const [calRes, projRes, memRes] = await Promise.all([
+      fetch(`/api/calendar?year=${year}&month=${month}`),
+      fetch("/api/projects"),
+      fetch("/api/members"),
+    ]);
+    setAssignments(await calRes.json());
+    setProjects(await projRes.json());
+    setMembers(await memRes.json());
+  }, [year, month]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Build calendar grid
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const daysInMonth = lastDay.getDate();
+  const startDow = firstDay.getDay(); // 0=Sun
+
+  const weeks: (number | null)[][] = [];
+  let week: (number | null)[] = Array(startDow).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+
+  // Group assignments by date
+  const byDate: Record<string, DayData> = {};
+  for (const a of assignments) {
+    if (!byDate[a.date]) byDate[a.date] = {};
+    const key = `${a.company_name}|${a.project_name}`;
+    if (!byDate[a.date][key]) {
+      byDate[a.date][key] = {
+        company_name: a.company_name,
+        company_color: a.company_color,
+        project_name: a.project_name,
+        project_id: a.project_id,
+        workers: [],
+      };
+    }
+    byDate[a.date][key].workers.push({
+      id: a.user_id,
+      name: a.worker_name,
+      man_day: a.man_day,
+      note: a.note,
+      assignment_id: a.id,
+    });
+  }
+
+  const dateStr = (d: number) =>
+    `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  const prevMonth = () => {
+    if (month === 1) { setYear(year - 1); setMonth(12); }
+    else setMonth(month - 1);
+    setSelectedDate(null);
+  };
+  const nextMonth = () => {
+    if (month === 12) { setYear(year + 1); setMonth(1); }
+    else setMonth(month + 1);
+    setSelectedDate(null);
+  };
+
+  const handleAddAssignment = async () => {
+    if (!addForm.project_id || addForm.user_ids.length === 0 || !selectedDate) return;
+    const payload = addForm.user_ids.map((uid) => ({
+      user_id: uid,
+      project_id: Number(addForm.project_id),
+      date: selectedDate,
+      man_day: parseFloat(addForm.man_day) || 1.0,
+      note: addForm.note || null,
+    }));
+    await fetch("/api/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignments: payload }),
+    });
+    setAddForm({ project_id: "", user_ids: [], man_day: "1.0", note: "" });
+    setShowAddForm(false);
+    load();
+  };
+
+  const handleDeleteAssignment = async (id: number) => {
+    await fetch(`/api/assignments/${id}`, { method: "DELETE" });
+    load();
+  };
+
+  const toggleUser = (uid: number) => {
+    setAddForm((prev) => ({
+      ...prev,
+      user_ids: prev.user_ids.includes(uid)
+        ? prev.user_ids.filter((id) => id !== uid)
+        : [...prev.user_ids, uid],
+    }));
+  };
+
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const selectedDayData = selectedDate ? byDate[selectedDate] : null;
+
+  // Group projects by company for dropdown
+  const projectsByCompany: Record<string, Project[]> = {};
+  for (const p of projects) {
+    if (!projectsByCompany[p.company_name]) projectsByCompany[p.company_name] = [];
+    projectsByCompany[p.company_name].push(p);
+  }
+
+  return (
+    <div className="flex gap-6">
+      {/* Calendar */}
+      <div className={`flex-1 min-w-0 ${selectedDate ? "hidden lg:block" : ""}`}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prevMonth} className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold text-slate-800">
+            {year}년 {month}월
+          </h1>
+          <button onClick={nextMonth} className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {/* Day headers */}
+          <div className="grid grid-cols-7 border-b border-slate-200">
+            {dayNames.map((d, i) => (
+              <div
+                key={d}
+                className={`text-center py-2 text-sm font-medium ${
+                  i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-slate-600"
+                }`}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Weeks */}
+          {weeks.map((w, wi) => (
+            <div key={wi} className="grid grid-cols-7 border-b border-slate-100 last:border-b-0">
+              {w.map((d, di) => {
+                if (d === null)
+                  return <div key={di} className="min-h-[100px] bg-slate-50/50" />;
+
+                const ds = dateStr(d);
+                const dayData = byDate[ds];
+                const isToday =
+                  ds ===
+                  `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
+                const isSunday = di === 0;
+                const isSaturday = di === 6;
+                const isSelected = ds === selectedDate;
+
+                return (
+                  <div
+                    key={di}
+                    onClick={() => setSelectedDate(ds)}
+                    className={`min-h-[100px] p-1.5 border-r border-slate-100 last:border-r-0 cursor-pointer transition hover:bg-blue-50/50 calendar-cell overflow-y-auto ${
+                      isSelected ? "bg-blue-50 ring-2 ring-blue-400 ring-inset" : ""
+                    } ${isSunday ? "bg-red-50/30" : ""} ${isSaturday ? "bg-blue-50/30" : ""}`}
+                  >
+                    <div className={`text-xs font-bold mb-1 ${
+                      isToday
+                        ? "w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center"
+                        : isSunday
+                        ? "text-red-500"
+                        : isSaturday
+                        ? "text-blue-500"
+                        : "text-slate-700"
+                    }`}>
+                      {d}
+                    </div>
+                    {dayData &&
+                      Object.values(dayData).map((group, gi) => (
+                        <div key={gi} className="mb-1">
+                          <div
+                            className="text-[10px] font-bold px-1 py-0.5 rounded text-white truncate"
+                            style={{ backgroundColor: group.company_color }}
+                          >
+                            [{group.company_name}] {group.project_name}
+                          </div>
+                          <div className="text-[10px] text-slate-600 px-1 truncate">
+                            {group.workers
+                              .map((w) => `${w.name}${w.man_day !== 1 ? w.man_day : ""}`)
+                              .join(", ")}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right panel - Day detail */}
+      {selectedDate && (
+        <div className="w-full lg:w-96 flex-shrink-0">
+          <div className="bg-white rounded-xl border border-slate-200 sticky top-6">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="font-bold text-slate-800">
+                {selectedDate.replace(/-/g, ".")}
+                <span className="text-sm font-normal text-slate-500 ml-2">
+                  ({dayNames[new Date(selectedDate).getDay()]})
+                </span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setShowAddForm(true); setAddForm({ project_id: "", user_ids: [], man_day: "1.0", note: "" }); }}
+                  className="text-xs px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition cursor-pointer"
+                >
+                  + 배치추가
+                </button>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className="lg:hidden p-1 hover:bg-slate-100 rounded cursor-pointer"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto">
+              {!selectedDayData || Object.keys(selectedDayData).length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">배치 데이터가 없습니다</p>
+              ) : (
+                <div className="space-y-4">
+                  {Object.values(selectedDayData).map((group, gi) => (
+                    <div key={gi}>
+                      <div
+                        className="text-sm font-bold px-2 py-1.5 rounded text-white mb-2"
+                        style={{ backgroundColor: group.company_color }}
+                      >
+                        [{group.company_name}] {group.project_name}
+                      </div>
+                      <div className="space-y-1 ml-2">
+                        {group.workers.map((w, wi) => (
+                          <div
+                            key={wi}
+                            className="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-50 group"
+                          >
+                            <div className="text-sm">
+                              <span className="font-medium text-slate-800">{w.name}</span>
+                              <span className="text-slate-500 ml-1">({w.man_day})</span>
+                              {w.note && (
+                                <span className="text-xs text-slate-400 ml-2">{w.note}</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteAssignment(w.assignment_id)}
+                              className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Total */}
+                  <div className="border-t border-slate-200 pt-3 mt-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">총 투입인원</span>
+                      <span className="font-bold text-slate-800">
+                        {(() => {
+                          const ids = new Set<number>();
+                          Object.values(selectedDayData).forEach(g => g.workers.forEach(w => ids.add(w.id)));
+                          return ids.size;
+                        })()}명
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-slate-500">총 공수</span>
+                      <span className="font-bold text-blue-500">
+                        {Object.values(selectedDayData)
+                          .flatMap((g) => g.workers)
+                          .reduce((sum, w) => sum + w.man_day, 0)
+                          .toFixed(1)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Add form */}
+            {showAddForm && (
+              <div className="border-t border-slate-200 p-4">
+                <h3 className="text-sm font-bold text-slate-800 mb-3">배치 추가</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">공사 선택</label>
+                    <select
+                      value={addForm.project_id}
+                      onChange={(e) => setAddForm({ ...addForm, project_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">선택하세요</option>
+                      {Object.entries(projectsByCompany).map(([company, projs]) => (
+                        <optgroup key={company} label={company}>
+                          {projs.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">인원 선택 (다중)</label>
+                    <div className="max-h-40 overflow-y-auto border border-slate-300 rounded-lg p-2 space-y-1">
+                      {members.map((m) => (
+                        <label key={m.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={addForm.user_ids.includes(m.id)}
+                            onChange={() => toggleUser(m.id)}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{m.display_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">공수</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={addForm.man_day}
+                        onChange={(e) => setAddForm({ ...addForm, man_day: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">비고</label>
+                      <input
+                        type="text"
+                        value={addForm.note}
+                        onChange={(e) => setAddForm({ ...addForm, note: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="비고"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="flex-1 px-3 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleAddAssignment}
+                      className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition cursor-pointer"
+                    >
+                      저장
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
