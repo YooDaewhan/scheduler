@@ -41,8 +41,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
-        token.username = user.email;
-        token.displayName = user.name;
+        token.username = user.email ?? undefined;
+        token.displayName = user.name ?? undefined;
       }
       return token;
     },
