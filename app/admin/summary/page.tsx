@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 interface PersonDay {
   user_id: number;
@@ -21,12 +21,14 @@ export default function SummaryPage() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [personData, setPersonData] = useState<PersonDay[]>([]);
   const [projectData, setProjectData] = useState<ProjectSummary[]>([]);
+  const [activeTab, setActiveTab] = useState("전체");
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/summary?year=${year}&month=${month}`);
     const data = await res.json();
     setPersonData(data.personData);
     setProjectData(data.projectData);
+    setActiveTab("전체");
   }, [year, month]);
 
   useEffect(() => { load(); }, [load]);
@@ -45,17 +47,32 @@ export default function SummaryPage() {
     personMap[pd.user_id].total += pd.man_day;
   }
 
+  // 업체 탭 목록
+  const companyTabs = useMemo(() => {
+    const companies = new Set(projectData.map((p) => p.company_name));
+    return ["전체", ...Array.from(companies)];
+  }, [projectData]);
+
+  // 업체 색상 맵
+  const companyColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of projectData) {
+      map[p.company_name] = p.company_color;
+    }
+    return map;
+  }, [projectData]);
+
+  // 필터된 프로젝트 데이터
+  const filteredProjects = useMemo(() => {
+    if (activeTab === "전체") return projectData;
+    return projectData.filter((p) => p.company_name === activeTab);
+  }, [projectData, activeTab]);
+
   const getSunday = (d: number) => new Date(year, month - 1, d).getDay() === 0;
   const getSaturday = (d: number) => new Date(year, month - 1, d).getDay() === 6;
 
-  const prevMonth = () => {
-    if (month === 1) { setYear(year - 1); setMonth(12); }
-    else setMonth(month - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setYear(year + 1); setMonth(1); }
-    else setMonth(month + 1);
-  };
+  const prevMonth = () => { if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1); };
+  const nextMonth = () => { if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1); };
 
   return (
     <div>
@@ -63,15 +80,11 @@ export default function SummaryPage() {
         <h1 className="text-2xl font-bold text-slate-800">월간 집계</h1>
         <div className="flex items-center gap-3">
           <button onClick={prevMonth} className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <span className="text-lg font-bold text-slate-800">{year}년 {month}월</span>
           <button onClick={nextMonth} className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
       </div>
@@ -86,14 +99,7 @@ export default function SummaryPage() {
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="sticky left-0 bg-slate-50 px-3 py-2 text-left font-medium text-slate-600 min-w-[80px] z-10">이름</th>
               {days.map((d) => (
-                <th
-                  key={d}
-                  className={`px-1.5 py-2 text-center font-medium min-w-[32px] ${
-                    getSunday(d) ? "text-red-500 bg-red-50" : getSaturday(d) ? "text-blue-500 bg-blue-50" : "text-slate-600"
-                  }`}
-                >
-                  {d}
-                </th>
+                <th key={d} className={`px-1.5 py-2 text-center font-medium min-w-[32px] ${getSunday(d) ? "text-red-500 bg-red-50" : getSaturday(d) ? "text-blue-500 bg-blue-50" : "text-slate-600"}`}>{d}</th>
               ))}
               <th className="px-3 py-2 text-center font-bold text-slate-800 bg-yellow-50 min-w-[50px]">합계</th>
             </tr>
@@ -103,29 +109,19 @@ export default function SummaryPage() {
               <tr key={uid} className="border-b border-slate-100">
                 <td className="sticky left-0 bg-white px-3 py-2 font-medium text-slate-800 z-10">{data.name}</td>
                 {days.map((d) => (
-                  <td
-                    key={d}
-                    className={`px-1.5 py-2 text-center ${
-                      getSunday(d) ? "bg-red-50/50" : getSaturday(d) ? "bg-blue-50/50" : ""
-                    } ${data.days[d] ? "text-slate-800 font-medium" : "text-slate-300"}`}
-                  >
+                  <td key={d} className={`px-1.5 py-2 text-center ${getSunday(d) ? "bg-red-50/50" : getSaturday(d) ? "bg-blue-50/50" : ""} ${data.days[d] ? "text-slate-800 font-medium" : "text-slate-300"}`}>
                     {data.days[d] || ""}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-center font-bold text-blue-600 bg-yellow-50/50">
-                  {data.total.toFixed(1)}
-                </td>
+                <td className="px-3 py-2 text-center font-bold text-blue-600 bg-yellow-50/50">{data.total.toFixed(1)}</td>
               </tr>
             ))}
-            {/* 총합 */}
             <tr className="bg-slate-50 font-bold border-t-2 border-slate-300">
               <td className="sticky left-0 bg-slate-50 px-3 py-2 text-slate-700 z-10">총합계</td>
               {days.map((d) => {
                 const dayTotal = Object.values(personMap).reduce((s, p) => s + (p.days[d] || 0), 0);
                 return (
-                  <td key={d} className={`px-1.5 py-2 text-center text-slate-700 ${
-                    getSunday(d) ? "bg-red-50" : getSaturday(d) ? "bg-blue-50" : ""
-                  }`}>
+                  <td key={d} className={`px-1.5 py-2 text-center text-slate-700 ${getSunday(d) ? "bg-red-50" : getSaturday(d) ? "bg-blue-50" : ""}`}>
                     {dayTotal || ""}
                   </td>
                 );
@@ -141,7 +137,33 @@ export default function SummaryPage() {
       {/* 현장별 공수 집계 */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200">
-          <h2 className="font-bold text-slate-700">현장별 공수 집계</h2>
+          <h2 className="font-bold text-slate-700 mb-3">현장별 공수 집계</h2>
+          {/* 업체별 탭 */}
+          <div className="flex flex-wrap gap-1.5">
+            {companyTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                  activeTab === tab
+                    ? "text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+                style={
+                  activeTab === tab
+                    ? { backgroundColor: tab === "전체" ? "#3b82f6" : companyColorMap[tab] || "#3b82f6" }
+                    : undefined
+                }
+              >
+                {tab}
+                {tab !== "전체" && (
+                  <span className="ml-1.5 opacity-75">
+                    ({projectData.filter((p) => p.company_name === tab).reduce((s, p) => s + p.total_man_days, 0).toFixed(1)})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -152,27 +174,29 @@ export default function SummaryPage() {
             </tr>
           </thead>
           <tbody>
-            {projectData.map((p, i) => (
+            {filteredProjects.map((p, i) => (
               <tr key={i} className="border-b border-slate-100">
                 <td className="px-5 py-3 font-medium text-slate-800">{p.project_name}</td>
                 <td className="px-5 py-3">
-                  <span
-                    className="text-xs px-2 py-1 rounded text-white font-medium"
-                    style={{ backgroundColor: p.company_color }}
-                  >
+                  <span className="text-xs px-2 py-1 rounded text-white font-medium" style={{ backgroundColor: p.company_color }}>
                     {p.company_name}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-center font-bold text-blue-600">{p.total_man_days.toFixed(1)}</td>
               </tr>
             ))}
-            {projectData.length > 0 && (
+            {filteredProjects.length > 0 && (
               <tr className="bg-slate-50 font-bold border-t-2 border-slate-300">
-                <td className="px-5 py-3 text-slate-700" colSpan={2}>총합계</td>
+                <td className="px-5 py-3 text-slate-700" colSpan={2}>
+                  {activeTab === "전체" ? "총합계" : `${activeTab} 합계`}
+                </td>
                 <td className="px-5 py-3 text-center text-blue-600">
-                  {projectData.reduce((s, p) => s + p.total_man_days, 0).toFixed(1)}
+                  {filteredProjects.reduce((s, p) => s + p.total_man_days, 0).toFixed(1)}
                 </td>
               </tr>
+            )}
+            {filteredProjects.length === 0 && (
+              <tr><td colSpan={3} className="px-5 py-8 text-center text-slate-400">데이터가 없습니다</td></tr>
             )}
           </tbody>
         </table>
