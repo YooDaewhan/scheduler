@@ -4,7 +4,6 @@ import fs from "fs";
 
 const DB_PATH = path.join(process.cwd(), "data", "scheduler.db");
 
-// Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -44,6 +43,7 @@ function initializeDb(database: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_id INTEGER NOT NULL,
       name TEXT NOT NULL,
+      work_type TEXT NOT NULL DEFAULT 'contract',
       start_date DATE,
       end_date DATE,
       is_active INTEGER DEFAULT 1,
@@ -69,18 +69,18 @@ function initializeDb(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_assignments_project_date ON daily_assignments(project_id, date);
   `);
 
-  // Seed admin if not exists
+  // Migration: add work_type if not exists
+  const cols = database.prepare("PRAGMA table_info(projects)").all() as any[];
+  if (!cols.find((c: any) => c.name === "work_type")) {
+    database.exec("ALTER TABLE projects ADD COLUMN work_type TEXT NOT NULL DEFAULT 'contract'");
+  }
+
+  // Seed admin
   const bcryptjs = require("bcryptjs");
-  const existing = database
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get("admin");
+  const existing = database.prepare("SELECT id FROM users WHERE username = ?").get("admin");
   if (!existing) {
     const hash = bcryptjs.hashSync("admin123", 10);
-    database
-      .prepare(
-        "INSERT INTO users (username, password, role, display_name) VALUES (?, ?, ?, ?)"
-      )
-      .run("admin", hash, "admin", "관리자");
+    database.prepare("INSERT INTO users (username, password, role, display_name) VALUES (?, ?, ?, ?)").run("admin", hash, "admin", "관리자");
   }
 }
 

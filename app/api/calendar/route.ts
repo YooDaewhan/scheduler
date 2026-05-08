@@ -15,14 +15,14 @@ export async function GET(req: NextRequest) {
       `SELECT
         da.id, da.date, da.man_day, da.note, da.user_id, da.project_id,
         u.display_name as worker_name,
-        p.name as project_name,
+        p.name as project_name, p.work_type,
         c.id as company_id, c.name as company_name, c.color as company_color
        FROM daily_assignments da
        JOIN users u ON da.user_id = u.id
        JOIN projects p ON da.project_id = p.id
        JOIN companies c ON p.company_id = c.id
        WHERE da.date BETWEEN ? AND ?
-       ORDER BY da.date, c.name, p.name, u.display_name`
+       ORDER BY da.date, c.name, p.work_type, p.name, u.display_name`
     )
     .all(startDate, endDate);
 
