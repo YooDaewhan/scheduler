@@ -20,9 +20,7 @@ export async function PUT(
   const { name, color } = await req.json();
   const db = getDb();
   db.prepare("UPDATE companies SET name = ?, color = ? WHERE id = ?").run(
-    name,
-    color,
-    id
+    name, color, id
   );
   return NextResponse.json({ success: true });
 }

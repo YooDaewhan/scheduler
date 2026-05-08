@@ -120,15 +120,9 @@ export default function SummaryPage() {
               <td className="sticky left-0 bg-slate-50 px-3 py-2 text-slate-700 z-10">총합계</td>
               {days.map((d) => {
                 const dayTotal = Object.values(personMap).reduce((s, p) => s + (p.days[d] || 0), 0);
-                return (
-                  <td key={d} className={`px-1.5 py-2 text-center text-slate-700 ${getSunday(d) ? "bg-red-50" : getSaturday(d) ? "bg-blue-50" : ""}`}>
-                    {dayTotal || ""}
-                  </td>
-                );
+                return <td key={d} className={`px-1.5 py-2 text-center text-slate-700 ${getSunday(d) ? "bg-red-50" : getSaturday(d) ? "bg-blue-50" : ""}`}>{dayTotal || ""}</td>;
               })}
-              <td className="px-3 py-2 text-center text-blue-600 bg-yellow-100">
-                {Object.values(personMap).reduce((s, p) => s + p.total, 0).toFixed(1)}
-              </td>
+              <td className="px-3 py-2 text-center text-blue-600 bg-yellow-100">{Object.values(personMap).reduce((s, p) => s + p.total, 0).toFixed(1)}</td>
             </tr>
           </tbody>
         </table>

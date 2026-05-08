@@ -57,21 +57,9 @@ export default function CalendarPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState({
-    project_id: "",
-    user_ids: [] as number[],
-    man_day: "1.0",
-    note: "",
-  });
-
-  // 수정 상태
+  const [addForm, setAddForm] = useState({ project_id: "", user_ids: [] as number[], man_day: "1.0", note: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({
-    project_id: "",
-    user_id: "",
-    man_day: "1.0",
-    note: "",
-  });
+  const [editForm, setEditForm] = useState({ project_id: "", user_id: "", man_day: "1.0", note: "" });
 
   const load = useCallback(async () => {
     const [calRes, projRes, memRes] = await Promise.all([
@@ -86,7 +74,6 @@ export default function CalendarPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Build calendar grid
   const daysInMonth = new Date(year, month, 0).getDate();
   const startDow = new Date(year, month - 1, 1).getDay();
 
@@ -96,12 +83,8 @@ export default function CalendarPage() {
     week.push(d);
     if (week.length === 7) { weeks.push(week); week = []; }
   }
-  if (week.length > 0) {
-    while (week.length < 7) week.push(null);
-    weeks.push(week);
-  }
+  if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
 
-  // Group assignments by date
   const byDate: Record<string, DayData> = {};
   for (const a of assignments) {
     if (!byDate[a.date]) byDate[a.date] = {};
@@ -118,21 +101,18 @@ export default function CalendarPage() {
     });
   }
 
-  const dateStr = (d: number) =>
-    `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
+  const dateStr = (d: number) => `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const prevMonth = () => { if (month === 1) { setYear(year - 1); setMonth(12); } else setMonth(month - 1); setSelectedDate(null); };
   const nextMonth = () => { if (month === 12) { setYear(year + 1); setMonth(1); } else setMonth(month + 1); setSelectedDate(null); };
 
   const handleAddAssignment = async () => {
     if (!addForm.project_id || addForm.user_ids.length === 0 || !selectedDate) return;
-    const payload = addForm.user_ids.map((uid) => ({
-      user_id: uid, project_id: Number(addForm.project_id),
-      date: selectedDate, man_day: parseFloat(addForm.man_day) || 1.0, note: addForm.note || null,
-    }));
     await fetch("/api/assignments", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignments: payload }),
+      body: JSON.stringify({ assignments: addForm.user_ids.map((uid) => ({
+        user_id: uid, project_id: Number(addForm.project_id),
+        date: selectedDate, man_day: parseFloat(addForm.man_day) || 1.0, note: addForm.note || null,
+      })) }),
     });
     setAddForm({ project_id: "", user_ids: [], man_day: "1.0", note: "" });
     setShowAddForm(false);
@@ -148,34 +128,21 @@ export default function CalendarPage() {
 
   const startEdit = (w: WorkerEntry) => {
     setEditingId(w.assignment_id);
-    setEditForm({
-      project_id: String(w.project_id),
-      user_id: String(w.user_id),
-      man_day: String(w.man_day),
-      note: w.note || "",
-    });
+    setEditForm({ project_id: String(w.project_id), user_id: String(w.user_id), man_day: String(w.man_day), note: w.note || "" });
   };
 
   const handleEditSave = async () => {
     if (!editingId) return;
     await fetch(`/api/assignments/${editingId}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        project_id: Number(editForm.project_id),
-        user_id: Number(editForm.user_id),
-        man_day: parseFloat(editForm.man_day) || 1.0,
-        note: editForm.note || null,
-      }),
+      body: JSON.stringify({ project_id: Number(editForm.project_id), user_id: Number(editForm.user_id), man_day: parseFloat(editForm.man_day) || 1.0, note: editForm.note || null }),
     });
     setEditingId(null);
     load();
   };
 
   const toggleUser = (uid: number) => {
-    setAddForm((prev) => ({
-      ...prev,
-      user_ids: prev.user_ids.includes(uid) ? prev.user_ids.filter((id) => id !== uid) : [...prev.user_ids, uid],
-    }));
+    setAddForm((prev) => ({ ...prev, user_ids: prev.user_ids.includes(uid) ? prev.user_ids.filter((id) => id !== uid) : [...prev.user_ids, uid] }));
   };
 
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
@@ -189,7 +156,6 @@ export default function CalendarPage() {
 
   return (
     <div className="flex gap-6">
-      {/* Calendar */}
       <div className={`flex-1 min-w-0 ${selectedDate ? "hidden lg:block" : ""}`}>
         <div className="flex items-center justify-between mb-4">
           <button onClick={prevMonth} className="p-2 hover:bg-slate-200 rounded-lg transition cursor-pointer">
@@ -214,8 +180,7 @@ export default function CalendarPage() {
                 const ds = dateStr(d);
                 const dayData = byDate[ds];
                 const isToday = ds === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
-                const isSunday = di === 0;
-                const isSaturday = di === 6;
+                const isSunday = di === 0; const isSaturday = di === 6;
                 const isSelected = ds === selectedDate;
 
                 return (
@@ -272,7 +237,6 @@ export default function CalendarPage() {
                         {group.workers.map((w, wi) => (
                           <div key={wi}>
                             {editingId === w.assignment_id ? (
-                              /* 수정 폼 (인라인) */
                               <div className="bg-slate-50 rounded-lg p-3 space-y-2 border border-slate-200">
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
@@ -287,9 +251,7 @@ export default function CalendarPage() {
                                     <select value={editForm.project_id} onChange={(e) => setEditForm({ ...editForm, project_id: e.target.value })}
                                       className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
                                       {Object.entries(projectsByCompany).map(([company, projs]) => (
-                                        <optgroup key={company} label={company}>
-                                          {projs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                        </optgroup>
+                                        <optgroup key={company} label={company}>{projs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
                                       ))}
                                     </select>
                                   </div>
@@ -313,16 +275,13 @@ export default function CalendarPage() {
                                 </div>
                               </div>
                             ) : (
-                              /* 일반 표시 */
                               <div className="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-50 group cursor-pointer" onClick={() => startEdit(w)}>
                                 <div className="text-sm">
                                   <span className="font-medium text-slate-800">{w.name}</span>
                                   <span className="text-slate-500 ml-1">({w.man_day})</span>
                                   {w.note && <span className="text-xs text-slate-400 ml-2">{w.note}</span>}
                                 </div>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                                  <span className="text-[10px] text-blue-400">수정</span>
-                                </div>
+                                <span className="text-[10px] text-blue-400 opacity-0 group-hover:opacity-100 transition">수정</span>
                               </div>
                             )}
                           </div>
@@ -333,22 +292,17 @@ export default function CalendarPage() {
                   <div className="border-t border-slate-200 pt-3 mt-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">총 투입인원</span>
-                      <span className="font-bold text-slate-800">
-                        {(() => { const ids = new Set<number>(); Object.values(selectedDayData).forEach(g => g.workers.forEach(w => ids.add(w.id))); return ids.size; })()}명
-                      </span>
+                      <span className="font-bold text-slate-800">{(() => { const ids = new Set<number>(); Object.values(selectedDayData).forEach(g => g.workers.forEach(w => ids.add(w.id))); return ids.size; })()}명</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-slate-500">총 공수</span>
-                      <span className="font-bold text-blue-500">
-                        {Object.values(selectedDayData).flatMap((g) => g.workers).reduce((sum, w) => sum + w.man_day, 0).toFixed(1)}
-                      </span>
+                      <span className="font-bold text-blue-500">{Object.values(selectedDayData).flatMap((g) => g.workers).reduce((sum, w) => sum + w.man_day, 0).toFixed(1)}</span>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Add form */}
             {showAddForm && (
               <div className="border-t border-slate-200 p-4">
                 <h3 className="text-sm font-bold text-slate-800 mb-3">배치 추가</h3>
@@ -359,9 +313,7 @@ export default function CalendarPage() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">선택하세요</option>
                       {Object.entries(projectsByCompany).map(([company, projs]) => (
-                        <optgroup key={company} label={company}>
-                          {projs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </optgroup>
+                        <optgroup key={company} label={company}>{projs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
                       ))}
                     </select>
                   </div>
