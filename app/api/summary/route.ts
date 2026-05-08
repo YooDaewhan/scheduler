@@ -9,12 +9,10 @@ export async function GET(req: NextRequest) {
 
   const db = getDb();
 
-  // Per-person daily breakdown
+  // 개인별 일자별
   const personData = db
     .prepare(
-      `SELECT
-        u.id as user_id, u.display_name,
-        da.date, da.man_day
+      `SELECT u.id as user_id, u.display_name, da.date, da.man_day
        FROM daily_assignments da
        JOIN users u ON da.user_id = u.id
        WHERE strftime('%Y-%m', da.date) = ?
@@ -22,13 +20,24 @@ export async function GET(req: NextRequest) {
     )
     .all(yearMonth);
 
-  // Per-project summary
+  // 개인별 총 공수 + 출근일수
+  const personTotals = db
+    .prepare(
+      `SELECT u.id as user_id, u.display_name,
+        SUM(da.man_day) as total_man_days,
+        COUNT(DISTINCT da.date) as work_days
+       FROM daily_assignments da
+       JOIN users u ON da.user_id = u.id
+       WHERE strftime('%Y-%m', da.date) = ?
+       GROUP BY u.id
+       ORDER BY u.display_name`
+    )
+    .all(yearMonth);
+
+  // 업체별 현장별 공수
   const projectData = db
     .prepare(
-      `SELECT
-        p.name as project_name,
-        c.name as company_name,
-        c.color as company_color,
+      `SELECT p.name as project_name, c.name as company_name, c.color as company_color,
         SUM(da.man_day) as total_man_days
        FROM daily_assignments da
        JOIN projects p ON da.project_id = p.id
@@ -39,5 +48,31 @@ export async function GET(req: NextRequest) {
     )
     .all(yearMonth);
 
-  return NextResponse.json({ personData, projectData });
+  // 업체별 총 합계
+  const companyTotals = db
+    .prepare(
+      `SELECT c.name as company_name, c.color as company_color,
+        SUM(da.man_day) as total_man_days
+       FROM daily_assignments da
+       JOIN projects p ON da.project_id = p.id
+       JOIN companies c ON p.company_id = c.id
+       WHERE strftime('%Y-%m', da.date) = ?
+       GROUP BY c.id
+       ORDER BY c.name`
+    )
+    .all(yearMonth);
+
+  // 공사별 통합 (업체 무관)
+  const projectMerged = db
+    .prepare(
+      `SELECT p.name as project_name, SUM(da.man_day) as total_man_days
+       FROM daily_assignments da
+       JOIN projects p ON da.project_id = p.id
+       WHERE strftime('%Y-%m', da.date) = ?
+       GROUP BY p.name
+       ORDER BY p.name`
+    )
+    .all(yearMonth);
+
+  return NextResponse.json({ personData, personTotals, projectData, companyTotals, projectMerged });
 }
