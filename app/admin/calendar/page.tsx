@@ -42,10 +42,11 @@ export default function CalendarPage() {
   for (let d = 1; d <= daysInMonth; d++) { week.push(d); if (week.length === 7) { weeks.push(week); week = []; } }
   if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
 
+  // 그룹핑 키에 work_type 포함 → 같은 업체+같은 공사명이어도 공사/일당 분리
   const byDate: Record<string, DayData> = {};
   for (const a of assignments) {
     if (!byDate[a.date]) byDate[a.date] = {};
-    const key = `${a.company_name}|${a.project_name}`;
+    const key = `${a.company_name}|${a.project_name}|${a.work_type}`;
     if (!byDate[a.date][key]) {
       byDate[a.date][key] = { company_name: a.company_name, company_color: a.company_color, project_name: a.project_name, project_id: a.project_id, work_type: a.work_type, workers: [] };
     }
@@ -85,12 +86,10 @@ export default function CalendarPage() {
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   const selectedDayData = selectedDate ? byDate[selectedDate] : null;
 
-  // 프로젝트를 업체 > 구분(공사/일당) 으로 그룹핑
   const projectsByCompany: Record<string, Project[]> = {};
   for (const p of projects) {
-    const label = `${p.company_name}`;
-    if (!projectsByCompany[label]) projectsByCompany[label] = [];
-    projectsByCompany[label].push(p);
+    if (!projectsByCompany[p.company_name]) projectsByCompany[p.company_name] = [];
+    projectsByCompany[p.company_name].push(p);
   }
 
   return (
