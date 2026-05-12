@@ -1,29 +1,33 @@
 import { MongoClient, Db } from "mongodb";
 import bcryptjs from "bcryptjs";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-
 declare global {
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-let clientPromise: Promise<MongoClient>;
+let _clientPromise: Promise<MongoClient> | null = null;
 
-if (process.env.NODE_ENV === "development") {
-  if (!global._mongoClientPromise) {
-    const client = new MongoClient(MONGODB_URI);
-    global._mongoClientPromise = client.connect();
+function getClientPromise(): Promise<MongoClient> {
+  if (_clientPromise) return _clientPromise;
+
+  const uri = process.env.MONGODB_URI!;
+  if (process.env.NODE_ENV === "development") {
+    if (!global._mongoClientPromise) {
+      const client = new MongoClient(uri);
+      global._mongoClientPromise = client.connect();
+    }
+    _clientPromise = global._mongoClientPromise;
+  } else {
+    const client = new MongoClient(uri);
+    _clientPromise = client.connect();
   }
-  clientPromise = global._mongoClientPromise;
-} else {
-  const client = new MongoClient(MONGODB_URI);
-  clientPromise = client.connect();
+  return _clientPromise;
 }
 
 let seeded = false;
 
 export async function getDb(): Promise<Db> {
-  const client = await clientPromise;
+  const client = await getClientPromise();
   const db = client.db("scheduler");
   if (!seeded) {
     seeded = true;
