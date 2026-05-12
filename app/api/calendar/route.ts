@@ -9,22 +9,55 @@ export async function GET(req: NextRequest) {
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
   const endDate = `${year}-${String(month).padStart(2, "0")}-31`;
 
-  const db = getDb();
-  const data = db
-    .prepare(
-      `SELECT
-        da.id, da.date, da.man_day, da.note, da.user_id, da.project_id,
-        u.display_name as worker_name,
-        p.name as project_name, p.work_type,
-        c.id as company_id, c.name as company_name, c.color as company_color
-       FROM daily_assignments da
-       JOIN users u ON da.user_id = u.id
-       JOIN projects p ON da.project_id = p.id
-       JOIN companies c ON p.company_id = c.id
-       WHERE da.date BETWEEN ? AND ?
-       ORDER BY da.date, c.name, p.work_type, p.name, u.display_name`
-    )
-    .all(startDate, endDate);
+  const db = await getDb();
+
+  const data = await db.collection("daily_assignments").aggregate([
+    { $match: { date: { $gte: startDate, $lte: endDate } } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "user_id",
+        foreignField: "_id",
+        as: "_user",
+      },
+    },
+    { $unwind: "$_user" },
+    {
+      $lookup: {
+        from: "projects",
+        localField: "project_id",
+        foreignField: "_id",
+        as: "_project",
+      },
+    },
+    { $unwind: "$_project" },
+    {
+      $lookup: {
+        from: "companies",
+        localField: "_project.company_id",
+        foreignField: "_id",
+        as: "_company",
+      },
+    },
+    { $unwind: "$_company" },
+    {
+      $project: {
+        id: { $toString: "$_id" },
+        date: 1,
+        man_day: 1,
+        note: 1,
+        user_id: { $toString: "$user_id" },
+        project_id: { $toString: "$project_id" },
+        worker_name: "$_user.display_name",
+        project_name: "$_project.name",
+        work_type: "$_project.work_type",
+        company_id: { $toString: "$_company._id" },
+        company_name: "$_company.name",
+        company_color: "$_company.color",
+      },
+    },
+    { $sort: { date: 1, company_name: 1, work_type: 1, project_name: 1, worker_name: 1 } },
+  ]).toArray();
 
   return NextResponse.json(data);
 }

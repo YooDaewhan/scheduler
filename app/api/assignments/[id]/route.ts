@@ -1,25 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 import getDb from "@/lib/db";
 
 export async function PUT(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { man_day, note, project_id, user_id } = await req.json();
-  const db = getDb();
-  db.prepare(
-    "UPDATE daily_assignments SET man_day = ?, note = ?, project_id = ?, user_id = ? WHERE id = ?"
-  ).run(man_day, note || null, project_id, user_id, id);
+  const { man_day, note, project_id, user_id } = await _req.json();
+  const db = await getDb();
+  await db.collection("daily_assignments").updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        man_day,
+        note: note || null,
+        project_id: new ObjectId(project_id),
+        user_id: new ObjectId(user_id),
+      },
+    }
+  );
   return NextResponse.json({ success: true });
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const db = getDb();
-  db.prepare("DELETE FROM daily_assignments WHERE id = ?").run(id);
+  const db = await getDb();
+  await db.collection("daily_assignments").deleteOne({ _id: new ObjectId(id) });
   return NextResponse.json({ success: true });
 }

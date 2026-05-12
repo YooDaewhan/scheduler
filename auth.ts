@@ -15,10 +15,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) return null;
 
-        const db = getDb();
-        const user = db
-          .prepare("SELECT * FROM users WHERE username = ?")
-          .get(credentials.username as string) as any;
+        const db = await getDb();
+        const user = await db
+          .collection("users")
+          .findOne({ username: credentials.username as string });
 
         if (!user) return null;
 
@@ -29,7 +29,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!valid) return null;
 
         return {
-          id: String(user.id),
+          id: user._id.toString(),
           name: user.display_name || user.username,
           email: user.username,
           role: user.role,
@@ -49,7 +49,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = Number(token.id);
+        (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).username = token.username;
         (session.user as any).displayName = token.displayName;
