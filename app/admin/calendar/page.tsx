@@ -224,7 +224,7 @@ export default function CalendarPage() {
                   <div className="border-t border-slate-200 pt-3 mt-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">총 투입인원</span>
-                      <span className="font-bold text-slate-800">{(() => { const ids = new Set<number>(); Object.values(selectedDayData).forEach(g => g.workers.forEach(w => ids.add(w.id))); return ids.size; })()}명</span>
+                      <span className="font-bold text-slate-800">{(() => { const ids = new Set<string>(); Object.values(selectedDayData).forEach(g => g.workers.forEach(w => ids.add(w.id))); return ids.size; })()}명</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
                       <span className="text-slate-500">총 공수</span>
