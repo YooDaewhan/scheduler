@@ -3,15 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 
 interface Assignment {
-  id: number; date: string; man_day: number; note: string | null;
-  user_id: number; project_id: number; worker_name: string;
+  id: string; date: string; man_day: number; note: string | null;
+  user_id: string; project_id: string; worker_name: string;
   project_name: string; work_type: string;
-  company_id: number; company_name: string; company_color: string;
+  company_id: string; company_name: string; company_color: string;
 }
-interface Project { id: number; name: string; work_type: string; company_id: number; company_name: string; company_color: string; }
-interface Member { id: number; display_name: string; }
-interface WorkerEntry { id: number; name: string; man_day: number; note: string | null; assignment_id: number; user_id: number; project_id: number; }
-interface DayGroup { company_name: string; company_color: string; project_name: string; project_id: number; work_type: string; workers: WorkerEntry[]; }
+interface Project { id: string; name: string; work_type: string; company_id: string; company_name: string; company_color: string; }
+interface Member { id: string; display_name: string; }
+interface WorkerEntry { id: string; name: string; man_day: number; note: string | null; assignment_id: string; user_id: string; project_id: string; }
+interface DayGroup { company_name: string; company_color: string; project_name: string; project_id: string; work_type: string; workers: WorkerEntry[]; }
 type DayData = Record<string, DayGroup>;
 
 export default function CalendarPage() {
@@ -22,8 +22,8 @@ export default function CalendarPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState({ project_id: "", user_ids: [] as number[], man_day: "1.0", note: "" });
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [addForm, setAddForm] = useState({ project_id: "", user_ids: [] as string[], man_day: "1.0", note: "" });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ project_id: "", user_id: "", man_day: "1.0", note: "" });
 
   const load = useCallback(async () => {
@@ -60,11 +60,11 @@ export default function CalendarPage() {
   const handleAddAssignment = async () => {
     if (!addForm.project_id || addForm.user_ids.length === 0 || !selectedDate) return;
     await fetch("/api/assignments", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignments: addForm.user_ids.map((uid) => ({ user_id: uid, project_id: Number(addForm.project_id), date: selectedDate, man_day: parseFloat(addForm.man_day) || 1.0, note: addForm.note || null })) }) });
+      body: JSON.stringify({ assignments: addForm.user_ids.map((uid) => ({ user_id: uid, project_id: addForm.project_id, date: selectedDate, man_day: parseFloat(addForm.man_day) || 1.0, note: addForm.note || null })) }) });
     setAddForm({ project_id: "", user_ids: [], man_day: "1.0", note: "" }); setShowAddForm(false); load();
   };
 
-  const handleDeleteAssignment = async (id: number) => {
+  const handleDeleteAssignment = async (id: string) => {
     if (!confirm("이 배치를 삭제하시겠습니까?")) return;
     await fetch(`/api/assignments/${id}`, { method: "DELETE" }); setEditingId(null); load();
   };
@@ -77,11 +77,11 @@ export default function CalendarPage() {
   const handleEditSave = async () => {
     if (!editingId) return;
     await fetch(`/api/assignments/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: Number(editForm.project_id), user_id: Number(editForm.user_id), man_day: parseFloat(editForm.man_day) || 1.0, note: editForm.note || null }) });
+      body: JSON.stringify({ project_id: editForm.project_id, user_id: editForm.user_id, man_day: parseFloat(editForm.man_day) || 1.0, note: editForm.note || null }) });
     setEditingId(null); load();
   };
 
-  const toggleUser = (uid: number) => { setAddForm((prev) => ({ ...prev, user_ids: prev.user_ids.includes(uid) ? prev.user_ids.filter((id) => id !== uid) : [...prev.user_ids, uid] })); };
+  const toggleUser = (uid: string) => { setAddForm((prev) => ({ ...prev, user_ids: prev.user_ids.includes(uid) ? prev.user_ids.filter((id) => id !== uid) : [...prev.user_ids, uid] })); };
 
   const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
   const selectedDayData = selectedDate ? byDate[selectedDate] : null;
