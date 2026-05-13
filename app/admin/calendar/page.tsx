@@ -30,7 +30,11 @@ export default function CalendarPage() {
     const [calRes, projRes, memRes] = await Promise.all([
       fetch(`/api/calendar?year=${year}&month=${month}`), fetch("/api/projects"), fetch("/api/members"),
     ]);
-    setAssignments(await calRes.json()); setProjects(await projRes.json()); setMembers(await memRes.json());
+    const calData = await calRes.json();
+    if (!calRes.ok) { console.error("calendar API error:", calData); return; }
+    setAssignments(Array.isArray(calData) ? calData : []);
+    setProjects(await projRes.json());
+    setMembers(await memRes.json());
   }, [year, month]);
 
   useEffect(() => { load(); }, [load]);

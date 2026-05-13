@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         as: "_project",
       },
     },
-    { $unwind: "$_project" },
+    { $unwind: { path: "$_project", preserveNullAndEmptyArrays: true } },
     {
       $lookup: {
         from: "companies",
@@ -40,16 +40,17 @@ export async function GET(req: NextRequest) {
         as: "_company",
       },
     },
-    { $unwind: "$_company" },
+    { $unwind: { path: "$_company", preserveNullAndEmptyArrays: true } },
     {
       $project: {
+        _id: 0,
         id: { $toString: "$_id" },
         date: 1,
         man_day: 1,
         note: 1,
-        project_name: "$_project.name",
-        company_name: "$_company.name",
-        company_color: "$_company.color",
+        project_name: { $ifNull: ["$_project.name", "알 수 없음"] },
+        company_name: { $ifNull: ["$_company.name", "알 수 없음"] },
+        company_color: { $ifNull: ["$_company.color", "#94a3b8"] },
       },
     },
     { $sort: { date: 1, company_name: 1, project_name: 1 } },
